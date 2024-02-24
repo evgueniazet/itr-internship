@@ -20,7 +20,6 @@ const Register: React.FC = () => {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!name) {
-      alert("Please enter name");
       return;
     }
     try {

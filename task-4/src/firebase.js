@@ -15,22 +15,40 @@ import {
   collection,
   where,
   addDoc,
+  updateDoc,
+  doc,
+  deleteDoc,
 } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBNGD4tJKPgWU8L49TDetJG__lt-9PhNyI",
-  authDomain: "itransition-4task.firebaseapp.com",
-  projectId: "itransition-4task",
-  storageBucket: "itransition-4task.appspot.com",
-  messagingSenderId: "854555996653",
-  appId: "1:854555996653:web:5f44d7836c3bec430eb7e4",
-  measurementId: "G-J2ZPD93499",
-};
+    apiKey: "AIzaSyBNGD4tJKPgWU8L49TDetJG__lt-9PhNyI",
+    authDomain: "itransition-4task.firebaseapp.com",
+    projectId: "itransition-4task",
+    storageBucket: "itransition-4task.appspot.com",
+    messagingSenderId: "854555996653",
+    appId: "1:854555996653:web:5f44d7836c3bec430eb7e4",
+    measurementId: "G-J2ZPD93499"
+  };
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
+
+const checkUserStatus = async (userId) => {
+  try {
+    const userDoc = await db.collection("users").doc(userId).get();
+
+    if (userDoc.exists && userDoc.data().status) {
+      return userDoc.data().status;
+    } else {
+      return "active";
+    }
+  } catch (error) {
+    console.error("Error checking user status:", error);
+    return "active";
+  }
+};
 
 const signInWithGoogle = async () => {
   try {
@@ -54,7 +72,21 @@ const signInWithGoogle = async () => {
 
 const logInWithEmailAndPassword = async (email, password) => {
   try {
-    await signInWithEmailAndPassword(auth, email, password);
+    const userCredential = await signInWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
+    const user = userCredential.user;
+
+    const userStatus = await checkUserStatus(user.uid);
+    if (userStatus === "blocked") {
+      throw new Error("Your account is blocked. Please contact support.");
+    } else {
+      await updateDoc(doc(db, "users", user.uid), {
+        lastLoginDate: new Date(),
+      });
+    }
   } catch (err) {
     console.error(err);
     alert(err.message);
@@ -65,11 +97,14 @@ const registerWithEmailAndPassword = async (name, email, password) => {
   try {
     const res = await createUserWithEmailAndPassword(auth, email, password);
     const user = res.user;
+    const registrationDate = new Date();
     await addDoc(collection(db, "users"), {
       uid: user.uid,
       name,
       authProvider: "local",
       email,
+      registrationDate,
+      lastLoginDate: registrationDate,
     });
   } catch (err) {
     console.error(err);
@@ -91,15 +126,61 @@ const logout = () => {
   signOut(auth);
 };
 
-const getUsers = async () => {
+const clearUsers = async () => {
+  try {
     const usersCollectionRef = collection(db, "users");
     const querySnapshot = await getDocs(usersCollectionRef);
-    const users = [];
-    querySnapshot.forEach((doc) => {
-      users.push({ id: doc.id, ...doc.data() });
+
+    querySnapshot.forEach(async (doc) => {
+      await deleteDoc(doc.ref);
     });
-    return users;
-  };
+
+    console.info("User list cleared.");
+  } catch (error) {
+    console.error("Error clearing user list:", error);
+  }
+};
+
+const blockUser = async (userId) => {
+  try {
+    await updateDoc(doc(db, "users", userId), {
+      status: "blocked",
+    });
+    console.info("User successfully blocked.");
+  } catch (error) {
+    console.error("Error blocking user:", error);
+  }
+};
+
+const deleteUser = async (userId) => {
+  try {
+    await deleteDoc(doc(db, "users", userId));
+    console.info("User successfully deleted.");
+  } catch (error) {
+    console.error("Error deleting user:", error);
+  }
+};
+
+const getUsers = async () => {
+  const usersCollectionRef = collection(db, "users");
+  const querySnapshot = await getDocs(usersCollectionRef);
+  const users = [];
+  querySnapshot.forEach((doc) => {
+    users.push({ id: doc.id, ...doc.data() });
+  });
+  return users;
+};
+
+const unblockUser = async (userId) => {
+  try {
+    await updateDoc(doc(db, "users", userId), {
+      status: "active",
+    });
+    console.info("User successfully unblocked.");
+  } catch (error) {
+    console.error("Error unblocking user:", error);
+  }
+};
 
 export {
   auth,
@@ -109,5 +190,10 @@ export {
   registerWithEmailAndPassword,
   sendPasswordReset,
   logout,
-  getUsers
+  getUsers,
+  clearUsers,
+  blockUser,
+  deleteUser,
+  unblockUser,
+  checkUserStatus,
 };

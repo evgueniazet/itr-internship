@@ -14,21 +14,13 @@ import {
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import BlockIcon from "@mui/icons-material/Block";
-import UnblockIcon from "@mui/icons-material/Block";
-import { getUsers } from "../../firebase";
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  registrationDate: string;
-  lastLoginDate: string;
-  status: string;
-}
+import UnblockIcon from "@mui/icons-material/CheckCircle";
+import { getUsers, blockUser, deleteUser, unblockUser } from "../../firebase";
+import { IUser } from "../../interfaces/IUser";
 
 const TablePage = () => {
   const [selected, setSelected] = useState<string[]>([]);
-  const [users, setUsers] = useState<User[] | never[]>([]);
+  const [users, setUsers] = useState<IUser[]>([]);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -44,12 +36,14 @@ const TablePage = () => {
   }, []);
 
   const handleSelectAllClick = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.checked) {
-      // Select all rows
-    } else {
-      // Deselect all rows
-    }
+    const checked = event.target.checked;
+    const allUserIds = users.map((user) => user.id);
+  
+    const newSelected = checked ? allUserIds : [];
+  
+    setSelected(newSelected);
   };
+ 
 
   const handleCheckboxClick = (id: string) => {
     const selectedIndex = selected.indexOf(id);
@@ -71,20 +65,64 @@ const TablePage = () => {
     setSelected(newSelected);
   };
 
+  const handleBlockSelectedUsers = async () => {
+    try {
+      for (const id of selected) {
+        await blockUser(id);
+      }
+      const updatedUsers = users.map((user) =>
+        selected.includes(user.id) ? { ...user, status: "blocked" } : user
+      );
+      setUsers(updatedUsers);
+      setSelected([]);
+    } catch (error) {
+      console.error("Error blocking selected users:", error);
+    }
+  };
+
+  const handleDeleteSelectedUsers = async () => {
+    try {
+      for (const id of selected) {
+        await deleteUser(id);
+      }
+      const updatedUsers = users.filter((user) => !selected.includes(user.id));
+      setUsers(updatedUsers);
+      setSelected([]);
+    } catch (error) {
+      console.error("Error deleting selected users:", error);
+    }
+  };
+
+  const handleUnblockSelectedUsers = async () => {
+    try {
+      for (const id of selected) {
+        await unblockUser(id);
+      }
+      const updatedUsers = users.map((user) =>
+        selected.includes(user.id) ? { ...user, status: "active" } : user
+      );
+      setUsers(updatedUsers);
+      setSelected([]);
+    } catch (error) {
+      console.error("Error unblocking selected users:", error);
+    }
+  };
+
   return (
     <Box>
       <Toolbar>
         <Typography variant="h6">Users</Typography>
-        <IconButton>
+        <IconButton onClick={handleBlockSelectedUsers}>
           <BlockIcon />
         </IconButton>
-        <IconButton>
+        <IconButton onClick={handleUnblockSelectedUsers}>
           <UnblockIcon />
         </IconButton>
-        <IconButton>
+        <IconButton onClick={handleDeleteSelectedUsers}>
           <DeleteIcon />
         </IconButton>
       </Toolbar>
+
       <TableContainer>
         <Table>
           <TableHead>
@@ -107,8 +145,16 @@ const TablePage = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {users.map((user: User) => {
-              console.log(user);
+            {users.map((user: IUser) => {
+              const registrationDate = new Date(
+                user.registrationDate.seconds * 1000 +
+                  user.registrationDate.nanoseconds / 1000000
+              );
+              const lastLoginDate = new Date(
+                user.lastLoginDate.seconds * 1000 +
+                  user.lastLoginDate.nanoseconds / 1000000
+              );
+
               return (
                 <TableRow key={user.id}>
                   <TableCell padding="checkbox">
@@ -120,14 +166,11 @@ const TablePage = () => {
                   <TableCell>{user.id}</TableCell>
                   <TableCell>{user.name}</TableCell>
                   <TableCell>{user.email}</TableCell>
-                  {/* <TableCell>
-        {new Date(user.metadata.creationTime).toISOString()}
-      </TableCell>
-      <TableCell>
-        {new Date(user.metadata.lastSignInTime).toISOString()}
-      </TableCell> */}
-
-                  <TableCell>{user.status}</TableCell>
+                  <TableCell>{registrationDate.toString()}</TableCell>
+                  <TableCell>{lastLoginDate.toString()}</TableCell>
+                  <TableCell>
+                    {user.status === "blocked" ? user.status : "active"}
+                  </TableCell>
                 </TableRow>
               );
             })}

@@ -1,13 +1,28 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button, TextField, Container, Typography, Box } from "@mui/material";
+import { logInWithEmailAndPassword, auth } from "../../firebase";
+import { useNavigate } from "react-router-dom";
+import { useAuthState } from "react-firebase-hooks/auth";
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [user, loading] = useAuthState(auth);
+  const navigate = useNavigate();
 
-  const handleSubmit = (event: React.FormEvent) => {
+  useEffect(() => {
+    if (!loading && user) {
+      navigate("/table");
+    }
+  }, [user, loading]);
+
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    console.log("Submitted:", { email, password });
+    try {
+      await logInWithEmailAndPassword(email, password);
+    } catch (error: any) {
+      console.error("Login error:", error.message);
+    }
   };
 
   return (
